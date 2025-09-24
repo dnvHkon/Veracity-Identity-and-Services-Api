@@ -10,6 +10,7 @@ namespace Veracity.Common.Authentication
         public static IConfidentialClientApplication ConfidentialClientApplication(this TokenProviderConfiguration configuration,
             TokenCacheBase cache, Action<string> _debugLogger)
         {
+            ValidateConfig(configuration);
             var context = ConfidentialClientApplicationBuilder.Create(ClientId(configuration))
                 .WithClientSecret(configuration.ClientSecret).WithB2CAuthority(Authority(configuration))//.WithAuthority(Authority(configuration),false)//.WithB2CAuthority(Authority(configuration))
                 .WithRedirectUri(configuration.RedirectUrl)
@@ -18,7 +19,13 @@ namespace Veracity.Common.Authentication
             cache?.SetCacheInstance(context.UserTokenCache);
             return context;
         }
-        public static string Authority(TokenProviderConfiguration configuration) => $"{configuration.Instance}{(configuration.Instance.EndsWith("/")?"":"/")}tfp/{TenantId(configuration)}/{configuration.Policy}/v2.0/.well-known/openid-configuration";
+        public static string Authority(TokenProviderConfiguration configuration)
+        {
+            if (configuration == null) throw new ArgumentNullException(nameof(configuration));
+            if (string.IsNullOrWhiteSpace(configuration.Instance)) throw new ArgumentNullException(nameof(configuration.Instance));
+            if (string.IsNullOrWhiteSpace(configuration.Policy)) throw new ArgumentNullException(nameof(configuration.Policy));
+            return $"{configuration.Instance}{(configuration.Instance.EndsWith("/") ? "" : "/")}tfp/{TenantId(configuration)}/{configuration.Policy}/v2.0/.well-known/openid-configuration";
+        }
 
         public static string ClientId(TokenProviderConfiguration configuration) => configuration.ClientId;
 
@@ -26,5 +33,20 @@ namespace Veracity.Common.Authentication
         public static object TenantId(TokenProviderConfiguration configuration) => configuration.TenantId;
         public static object AppUrl(TokenProviderConfiguration configuration) => configuration.RedirectUrl.EndsWith("/") ? configuration.RedirectUrl.Remove(configuration.RedirectUrl.Length - 1, 1) : configuration.RedirectUrl;
 
+        private static void ValidateConfig(TokenProviderConfiguration configuration)
+        {
+            if (configuration == null) throw new ArgumentNullException(nameof(configuration));
+            ValidateRequiredString(configuration.ClientId, nameof(configuration.ClientId));
+            ValidateRequiredString(configuration.ClientSecret, nameof(configuration.ClientSecret));
+            ValidateRequiredString(configuration.RedirectUrl, nameof(configuration.RedirectUrl));
+            ValidateRequiredString(configuration.TenantId, nameof(configuration.TenantId));
+            ValidateRequiredString(configuration.Policy, nameof(configuration.Policy));
+            ValidateRequiredString(configuration.Instance, nameof(configuration.Instance));
+        }
+
+        private static void ValidateRequiredString(string value, string name)
+        {
+            if (string.IsNullOrWhiteSpace(value)) throw new ArgumentNullException(name, name + " cannot be null or empty");
+        }
     }
 }
