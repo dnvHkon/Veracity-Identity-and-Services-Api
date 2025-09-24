@@ -76,6 +76,24 @@ namespace Veracity.Common.Authentication
             return builder;
         }
 
+        public static IServiceCollection AddOnTokenValidated(this IServiceCollection services, Func<TokenValidatedContext, Task> handler, string scheme = OpenIdConnectDefaults.AuthenticationScheme)
+        {
+            if (handler == null) throw new ArgumentNullException(nameof(handler));
+
+            services.PostConfigure<OpenIdConnectOptions>(scheme, options =>
+            {
+                var prev = options.Events?.OnTokenValidated;
+                options.Events ??= new OpenIdConnectEvents();
+                options.Events.OnTokenValidated = async ctx =>
+                {
+                    if (prev != null) await prev(ctx);
+                    await handler(ctx);
+                };
+            });
+
+            return services;
+        }
+
         internal static IServiceCollection AddDeamoApp(this IServiceCollection builder, TokenProviderConfiguration configuration)
         {
             builder
@@ -83,7 +101,7 @@ namespace Veracity.Common.Authentication
                 .AddSingleton<TokenProviderConfiguration, TokenProviderConfiguration>()
                 .AddSingleton<ILogger, LogWrapper>()
                 .AddSingleton<ILogging, LogWrapper>();
-            
+
 
             return builder;
         }
@@ -186,7 +204,7 @@ namespace Veracity.Common.Authentication
                 {
                     _logger?.Message(ex.ResponseBody);
                     _logger?.Message(ex.Message);
-                    _logger?.Message(ex.Claims??"");
+                    _logger?.Message(ex.Claims ?? "");
                     _logger?.Error(ex);
                     if (AzureAdB2COptions.TerminateOnPolicyException) throw new Exception(ex.Message, ex);
                 }
@@ -227,7 +245,7 @@ namespace Veracity.Common.Authentication
                 Configure(Options.DefaultName, options, configuration);
             }
 
-            public Task OnRedirectToIdentityProvider(RedirectContext context,TokenProviderConfiguration configuration)
+            public Task OnRedirectToIdentityProvider(RedirectContext context, TokenProviderConfiguration configuration)
             {
                 _logger?.Message("Redirecting");
                 var defaultPolicy = _azureOptions.DefaultPolicy;
@@ -239,7 +257,7 @@ namespace Veracity.Common.Authentication
                     context.ProtocolMessage.IssuerAddress = context.ProtocolMessage.IssuerAddress.ToLower()
                         .Replace($"/{defaultPolicy.ToLower()}/", $"/{policy.ToLower()}/");
                     context.Properties.Items.Remove(AzureAdB2COptions.PolicyAuthenticationProperty);
-                    
+
                 }
                 if (_upgradeHttp)
                 {
@@ -253,12 +271,12 @@ namespace Veracity.Common.Authentication
 
             private static bool IsMfaRequired(RedirectContext context, TokenProviderConfiguration configuration)
             {
-                return configuration.RequireMfa||(_conditionalMfaFunc?.Invoke(context.HttpContext,context.Properties)??false);
+                return configuration.RequireMfa || (_conditionalMfaFunc?.Invoke(context.HttpContext, context.Properties) ?? false);
             }
 
             private static bool IsMfaRequired(AuthorizationCodeReceivedContext context, TokenProviderConfiguration configuration)
             {
-                return configuration.RequireMfa || (_conditionalMfaFunc?.Invoke(context.HttpContext,context.Properties) ?? false);
+                return configuration.RequireMfa || (_conditionalMfaFunc?.Invoke(context.HttpContext, context.Properties) ?? false);
             }
 
             public Task OnRemoteFailure(RemoteFailureContext context)
