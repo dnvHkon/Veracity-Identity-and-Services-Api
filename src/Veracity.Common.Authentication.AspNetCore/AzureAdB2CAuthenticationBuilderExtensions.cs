@@ -76,24 +76,6 @@ namespace Veracity.Common.Authentication
             return builder;
         }
 
-        public static IServiceCollection AddOnTokenValidated(this IServiceCollection services, Func<TokenValidatedContext, Task> handler, string scheme = OpenIdConnectDefaults.AuthenticationScheme)
-        {
-            if (handler == null) throw new ArgumentNullException(nameof(handler));
-
-            services.PostConfigure<OpenIdConnectOptions>(scheme, options =>
-            {
-                var prev = options.Events?.OnTokenValidated;
-                options.Events ??= new OpenIdConnectEvents();
-                options.Events.OnTokenValidated = async ctx =>
-                {
-                    if (prev != null) await prev(ctx);
-                    await handler(ctx);
-                };
-            });
-
-            return services;
-        }
-
         internal static IServiceCollection AddDeamoApp(this IServiceCollection builder, TokenProviderConfiguration configuration)
         {
             builder
@@ -126,11 +108,17 @@ namespace Veracity.Common.Authentication
 
                 options.TokenValidationParameters = new TokenValidationParameters { NameClaimType = "name" };
                 var handler = options.Events.OnAuthorizationCodeReceived;
+                var prevTokenValidated = options.Events.OnTokenValidated;
                 options.Events = new OpenIdConnectEvents
                 {
                     OnRedirectToIdentityProvider = context => OnRedirectToIdentityProvider(context, configuration),
                     OnRemoteFailure = OnRemoteFailure,
-                    OnAuthorizationCodeReceived = context => OnAuthorizationCodeReceived(context, configuration, handler)
+                    OnAuthorizationCodeReceived = context => OnAuthorizationCodeReceived(context, configuration, handler),
+                    OnTokenValidated = async ctx =>
+                    {
+                        if (prevTokenValidated != null) await prevTokenValidated(ctx);
+                        if (_azureOptions.TokenValidated != null) await _azureOptions.OnTokenValidated(ctx);
+                    }
                 };
             }
 
