@@ -84,30 +84,41 @@ services.AddVeracity(Configuration)
 
 ```
 
-### Post token validation customization (OnTokenValidated)
+### Customizing OpenId Connect events
 
-Custom logic that should run immediately after a successful token validation.
-
-Example:
+You can supply a full OpenIdConnectEvents object through AzureAdB2COptions.OpenIdConnectEvents when calling AddVeracityAuthentication.
 ```csharp
 services
-    .AddAuthentication(o =>
-    {
-        o.DefaultScheme = CookieAuthenticationDefaults.AuthenticationScheme;
-        o.DefaultChallengeScheme = OpenIdConnectDefaults.AuthenticationScheme;
-    })
-    .AddVeracityAuthentication(opts =>
-    {
-        opts.ClientId = "...";
-        opts.Instance = "https://login.veracity.com";
-        opts.Domain = "dnvglb2cprod.onmicrosoft.com";
-        opts.SignUpSignInPolicyId = "B2C_1A_SignInWithADFSIdp";
-        opts.TokenValidated = async ctx =>
-        {
-            
-        };
-    })
+  .AddAuthentication(o =>
+  {
+      o.DefaultScheme = CookieAuthenticationDefaults.AuthenticationScheme;
+      o.DefaultChallengeScheme = OpenIdConnectDefaults.AuthenticationScheme;
+  })
+  .AddVeracityAuthentication(opts =>
+  {
+      opts.ClientId = "...";
+      opts.Instance = "https://login.veracity.com";
+      opts.Domain = "dnvglb2cprod.onmicrosoft.com";
+      opts.SignUpSignInPolicyId = "B2C_1A_SignInWithADFSIdp";
+      opts.OpenIdConnectEvents = new OpenIdConnectEvents
+      {
+          OnTokenValidated = async ctx =>
+          {
+
+          },
+          OnRemoteFailure = ctx =>
+          {
+              
+          },
+          OnAuthorizationCodeReceived = async ctx =>
+          {
+              
+          },
+          etc...
+      };
+  })
 ```
+
 ### Logout
 
 Currently we do not provide any prebuilt code to handle logout. The reason for Veracity to provide a custom signout handler is to ensure that the user is loged out of all servcies. However there in not a 100% guarantee that the process will succseed so we need to show a information page in case the suer is using a public/shared device to access Veracity.

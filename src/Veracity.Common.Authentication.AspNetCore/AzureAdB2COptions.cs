@@ -24,6 +24,6 @@ namespace Veracity.Common.Authentication
 
         public static bool TerminateOnPolicyException { get; set; }
 
-        public Func<TokenValidatedContext, Task> OnTokenValidated { get; set; }
+        public OpenIdConnectEvents OpenIdConnectEvents { get; set; }
     }
 }

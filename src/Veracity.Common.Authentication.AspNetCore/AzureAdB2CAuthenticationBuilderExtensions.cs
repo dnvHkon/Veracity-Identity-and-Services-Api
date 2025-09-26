@@ -108,16 +108,64 @@ namespace Veracity.Common.Authentication
 
                 options.TokenValidationParameters = new TokenValidationParameters { NameClaimType = "name" };
                 var handler = options.Events.OnAuthorizationCodeReceived;
-                var prevTokenValidated = options.Events.OnTokenValidated;
+                var userProvided = _azureOptions.OpenIdConnectEvents;
+
                 options.Events = new OpenIdConnectEvents
                 {
-                    OnRedirectToIdentityProvider = context => OnRedirectToIdentityProvider(context, configuration),
-                    OnRemoteFailure = OnRemoteFailure,
-                    OnAuthorizationCodeReceived = context => OnAuthorizationCodeReceived(context, configuration, handler),
-                    OnTokenValidated = async ctx =>
+                    OnRedirectToIdentityProvider = async context =>
                     {
-                        if (prevTokenValidated != null) await prevTokenValidated(ctx);
-                        if (_azureOptions.TokenValidated != null) await _azureOptions.OnTokenValidated(ctx);
+                        await OnRedirectToIdentityProvider(context, configuration);
+                        await userProvided.OnRedirectToIdentityProvider(context);
+                    },
+                    OnRemoteFailure = async context =>
+                    {
+                        await OnRemoteFailure(context);
+                        await userProvided.OnRemoteFailure(context);
+                    },
+                    OnAuthorizationCodeReceived = async context =>
+                    {
+                        await OnAuthorizationCodeReceived(context, configuration, handler);
+                        await userProvided.OnAuthorizationCodeReceived(context);
+                    },
+                    OnTokenValidated = async context =>
+                    {
+                        await userProvided.OnTokenValidated(context);
+                    },
+                    OnAccessDenied = async context =>
+                    {
+                        await userProvided.OnAccessDenied(context);
+                    },
+                    OnAuthenticationFailed = async context =>
+                    {
+                        await userProvided.OnAuthenticationFailed(context);
+                    },
+                    OnMessageReceived = async context =>
+                    {
+                        await userProvided.OnMessageReceived(context);
+                    },
+                    OnRedirectToIdentityProviderForSignOut = async context =>
+                    {
+                        await userProvided.OnRedirectToIdentityProviderForSignOut(context);
+                    },
+                    OnRemoteSignOut = async context =>
+                    {
+                        await userProvided.OnRemoteSignOut(context);
+                    },
+                    OnSignedOutCallbackRedirect = async context =>
+                    {
+                        await userProvided.OnSignedOutCallbackRedirect(context);
+                    },
+                    OnTicketReceived = async context =>
+                    {
+                        await userProvided.OnTicketReceived(context);
+                    },
+                    OnTokenResponseReceived = async context =>
+                    {
+                        await userProvided.OnTokenResponseReceived(context);
+                    },
+                    OnUserInformationReceived = async context =>
+                    {
+                        await userProvided.OnUserInformationReceived(context);
                     }
                 };
             }
@@ -250,7 +298,7 @@ namespace Veracity.Common.Authentication
                 if (_upgradeHttp)
                 {
                     if (context.ProtocolMessage.RedirectUri.StartsWith("http://"))
-                        context.ProtocolMessage.RedirectUri = context.ProtocolMessage.RedirectUri.Replace("http://", "https://");
+                    context.ProtocolMessage.RedirectUri = context.ProtocolMessage.RedirectUri.Replace("http://", "https://");
                 }
                 if (IsMfaRequired(context, configuration))
                     context.ProtocolMessage.SetParameter("mfa_required", "true");
