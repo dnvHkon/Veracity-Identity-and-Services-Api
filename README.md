@@ -118,7 +118,24 @@ services
       };
   })
 ```
+services
+.Configure<AzureAdB2COptions>(opts =>
+{
+    opts.OpenIdConnectEvents.OnTokenValidated = ctx =>
+    {
 
+    };
+})
+.AddAuthentication(sharedOptions =>
+{
+    sharedOptions.DefaultScheme = CookieAuthenticationDefaults.AuthenticationScheme;
+    sharedOptions.DefaultChallengeScheme = OpenIdConnectDefaults.AuthenticationScheme;
+})
+.AddVeracityAuthentication(builder.Configuration, isMfaRequiredOptions: (httpContext, authenticationProperties) =>
+{
+    //do custom logic there
+    return true;
+})
 ### Logout
 
 Currently we do not provide any prebuilt code to handle logout. The reason for Veracity to provide a custom signout handler is to ensure that the user is loged out of all servcies. However there in not a 100% guarantee that the process will succseed so we need to show a information page in case the suer is using a public/shared device to access Veracity.
