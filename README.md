@@ -87,6 +87,7 @@ services.AddVeracity(Configuration)
 ### Customizing OpenId Connect events
 
 You can supply a full OpenIdConnectEvents object through AzureAdB2COptions.OpenIdConnectEvents when calling AddVeracityAuthentication.
+This is an optional setting, that is not needed to use Veracity authentication.
 ```csharp
 services
   .AddAuthentication(o =>
@@ -118,24 +119,7 @@ services
       };
   })
 ```
-services
-.Configure<AzureAdB2COptions>(opts =>
-{
-    opts.OpenIdConnectEvents.OnTokenValidated = ctx =>
-    {
 
-    };
-})
-.AddAuthentication(sharedOptions =>
-{
-    sharedOptions.DefaultScheme = CookieAuthenticationDefaults.AuthenticationScheme;
-    sharedOptions.DefaultChallengeScheme = OpenIdConnectDefaults.AuthenticationScheme;
-})
-.AddVeracityAuthentication(builder.Configuration, isMfaRequiredOptions: (httpContext, authenticationProperties) =>
-{
-    //do custom logic there
-    return true;
-})
 ### Logout
 
 Currently we do not provide any prebuilt code to handle logout. The reason for Veracity to provide a custom signout handler is to ensure that the user is loged out of all servcies. However there in not a 100% guarantee that the process will succseed so we need to show a information page in case the suer is using a public/shared device to access Veracity.

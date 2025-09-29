@@ -101,13 +101,13 @@ namespace Veracity.Common.Authentication
 
             internal void Configure(string name, OpenIdConnectOptions options, TokenProviderConfiguration configuration)
             {
+                ValidateAzureOptions(_azureOptions);
                 options.ClientId = _azureOptions.ClientId;
                 options.Authority = $"{_azureOptions.Instance}/{_azureOptions.Domain}/{_azureOptions.SignUpSignInPolicyId}/v2.0";
                 options.UseTokenLifetime = true;
                 options.CallbackPath = _azureOptions.CallbackPath;
 
                 options.TokenValidationParameters = new TokenValidationParameters { NameClaimType = "name" };
-                var handler = options.Events.OnAuthorizationCodeReceived;
                 var userProvided = _azureOptions.OpenIdConnectEvents;
 
                 options.Events = new OpenIdConnectEvents
@@ -124,7 +124,7 @@ namespace Veracity.Common.Authentication
                     },
                     OnAuthorizationCodeReceived = async context =>
                     {
-                        await OnAuthorizationCodeReceived(context, configuration, handler);
+                        await OnAuthorizationCodeReceived(context, configuration);
                         await userProvided.OnAuthorizationCodeReceived(context);
                     },
                     OnTokenValidated = async context =>
@@ -170,7 +170,17 @@ namespace Veracity.Common.Authentication
                 };
             }
 
-            private async Task OnAuthorizationCodeReceived(AuthorizationCodeReceivedContext arg, TokenProviderConfiguration configuration, Func<AuthorizationCodeReceivedContext, Task> handler)
+            private static void ValidateAzureOptions(AzureAdB2COptions azureOptions)
+            {
+                if (azureOptions == null) throw new ArgumentNullException(nameof(azureOptions));
+                ValidationHelper.ValidateRequiredString(azureOptions.ClientId, nameof(azureOptions.ClientId));
+                ValidationHelper.ValidateRequiredString(azureOptions.Instance, nameof(azureOptions.Instance));
+                ValidationHelper.ValidateRequiredString(azureOptions.Domain, nameof(azureOptions.Domain));
+                ValidationHelper.ValidateRequiredString(azureOptions.SignUpSignInPolicyId, nameof(azureOptions.SignUpSignInPolicyId));
+                ValidationHelper.ValidateRequiredString(azureOptions.CallbackPath, nameof(azureOptions.CallbackPath));
+            }
+
+            private async Task OnAuthorizationCodeReceived(AuthorizationCodeReceivedContext arg, TokenProviderConfiguration configuration)
             {
                 _logger?.Message("Auth code received...");
                 var timer = Stopwatch.StartNew();
@@ -251,7 +261,6 @@ namespace Veracity.Common.Authentication
                 }
                 timer.Stop();
                 _logger?.Message($"Total on code received  took {timer.ElapsedMilliseconds}ms. ");
-                await handler(arg);
             }
 
             private static async Task<ValidationResult> ValidatePolicies(TokenProviderConfiguration configuration,
@@ -298,7 +307,7 @@ namespace Veracity.Common.Authentication
                 if (_upgradeHttp)
                 {
                     if (context.ProtocolMessage.RedirectUri.StartsWith("http://"))
-                    context.ProtocolMessage.RedirectUri = context.ProtocolMessage.RedirectUri.Replace("http://", "https://");
+                        context.ProtocolMessage.RedirectUri = context.ProtocolMessage.RedirectUri.Replace("http://", "https://");
                 }
                 if (IsMfaRequired(context, configuration))
                     context.ProtocolMessage.SetParameter("mfa_required", "true");
