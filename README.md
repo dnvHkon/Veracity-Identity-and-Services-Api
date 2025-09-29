@@ -130,7 +130,7 @@ Option 2: IConfiguration binding + events only
 services
     .Configure(opts =>
     {
-        opts.OpenIdConnectEvents.OnTokenValidated = ctx =>
+    opts.OpenIdConnectEvents.OnTokenValidated = ctx =>
     {
 
     };
