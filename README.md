@@ -128,25 +128,23 @@ Option 2: IConfiguration binding + events only
 ```csharp
 // appsettings.json contains Veracity section with required properties.
 services
-  .AddAuthentication(o =>
-  {
-      o.DefaultScheme = CookieAuthenticationDefaults.AuthenticationScheme;
-      o.DefaultChallengeScheme = OpenIdConnectDefaults.AuthenticationScheme;
-  })
-  .AddVeracityAuthentication(Configuration, optionsAction: opts =>
-  {
-      // All core settings already bound from Configuration
-      opts.OpenIdConnectEvents = new OpenIdConnectEvents
-      {
-          OnTokenValidated = async ctx =>
-          {
-          },
-          OnAuthorizationCodeReceived = async ctx =>
-          {
-          }
-      };
-  })
-  .AddCookie();
+    .Configure(opts =>
+    {
+        opts.OpenIdConnectEvents.OnTokenValidated = ctx =>
+    {
+
+    };
+    })
+    .AddAuthentication(sharedOptions =>
+    {
+        sharedOptions.DefaultScheme = CookieAuthenticationDefaults.AuthenticationScheme;
+        sharedOptions.DefaultChallengeScheme = OpenIdConnectDefaults.AuthenticationScheme;
+    })
+    .AddVeracityAuthentication(builder.Configuration, isMfaRequiredOptions: (httpContext, authenticationProperties) =>
+    {
+        //do custom logic there
+        return true;
+    })
 ```
 
 ### Logout
