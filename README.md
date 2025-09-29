@@ -85,9 +85,15 @@ services.AddVeracity(Configuration)
 ```
 
 ### Customizing OpenId Connect events
-
 You can supply a full OpenIdConnectEvents object through AzureAdB2COptions.OpenIdConnectEvents when calling AddVeracityAuthentication.
-This is an optional setting, that is not needed to use Veracity authentication.
+
+There is two ways to configure Veracity authentication:
+
+1. Full options action (manually setting all required properties) + events.
+   Use this when you don't bind from configuration and must specify every required option explicitly.
+2. IConfiguration binding plus supplying only custom events. Required properties are read from configuration and you only add extra event handlers.
+
+Option 1: Full options action
 ```csharp
 services
   .AddAuthentication(o =>
@@ -101,23 +107,46 @@ services
       opts.Instance = "https://login.veracity.com";
       opts.Domain = "dnvglb2cprod.onmicrosoft.com";
       opts.SignUpSignInPolicyId = "B2C_1A_SignInWithADFSIdp";
+      opts.CallbackPath = "/signin-oidc"; // or whatever your redirect path is
+      opts.Scope = "";
+
+      // Add only the event handlers you need
       opts.OpenIdConnectEvents = new OpenIdConnectEvents
       {
           OnTokenValidated = async ctx =>
           {
-
           },
           OnRemoteFailure = ctx =>
           {
-              
+          }
+      };
+  })
+  .AddCookie();
+```
+
+Option 2: IConfiguration binding + events only
+```csharp
+// appsettings.json contains Veracity section with required properties.
+services
+  .AddAuthentication(o =>
+  {
+      o.DefaultScheme = CookieAuthenticationDefaults.AuthenticationScheme;
+      o.DefaultChallengeScheme = OpenIdConnectDefaults.AuthenticationScheme;
+  })
+  .AddVeracityAuthentication(Configuration, optionsAction: opts =>
+  {
+      // All core settings already bound from Configuration
+      opts.OpenIdConnectEvents = new OpenIdConnectEvents
+      {
+          OnTokenValidated = async ctx =>
+          {
           },
           OnAuthorizationCodeReceived = async ctx =>
           {
-              
-          },
-          etc...
+          }
       };
   })
+  .AddCookie();
 ```
 
 ### Logout
@@ -333,7 +362,7 @@ public Startup(IHostingEnvironment env)
 ```
 
 
-#### asp.net
+#### aspnet
 
 Install the Veracity Identity Libraries (VIL)
 
@@ -423,7 +452,7 @@ Configuration
     <add key="UnobtrusiveJavaScriptEnabled" value="true" />
     <add key="apiGW:clientId" value="yourAppId" />
     <add key="apiGW:policy" value="B2C_1A_SignInWithADFSIdp" />
-    <add key="apiGW:scope" value="https://dnvglb2cprod.onmicrosoft.com/83054ebf-1d7b-43f5-82ad-b2bde84d7b75/user_impersonation" />
+    <add key="apiGW:scope" value="\thttps://dnvglb2cprod.onmicrosoft.com/83054ebf-1d7b-43f5-82ad-b2bde84d7b75/user_impersonation" />
     <add key="apiGW:redirectUrl" value="yourAppUrl" />
     <add key="apiGW:idp" value="a68572e3-63ce-4bc1-acdc-b64943502e9d" />
     <add key="myApiV3Url" value="https://api.veracity.com/Veracity/Services/V3" />
@@ -535,7 +564,7 @@ usefull when calling the Services api from both javascript on the client and fro
 
 The api client builds on top of the Veracity Identity Library. only minor changes are needed to the code in order to use the api client.
 
-See [#Veracity.Services.Api](#veracityservicesapi) for details on the rest api.
+See https://developer.veracity.com/doc/service-api for details on the rest api.
 
 #### The client api
 
@@ -564,7 +593,7 @@ public void ConfigureServices(IServiceCollection services)
     {
         // This lambda determines whether user consent for non-essential cookies is needed for a given request.
         options.CheckConsentNeeded = context => true;
-        options.MinimumSameSitePolicy = SameSiteMode.None;
+        options.MinimumSameSitePolicy = SameSiteMode None;
     })
 	.AddVeracityServices(ConfigurationManagerHelper.GetValueOnKey("myApiV3Url"))
 	.AddAuthentication(sharedOptions =>
@@ -578,313 +607,4 @@ public void ConfigureServices(IServiceCollection services)
 
     services.AddMvc()
 		.AddVeracityApiProxies(ConfigurationManagerHelper.GetValueOnKey("myApiV3Url"), CookieAuthenticationDefaults.AuthenticationScheme)
-		.SetCompatibilityVersion(CompatibilityVersion.Version_2_2);
-```
-Difference from the first aspnetcore example
-
-1. add the Veracity Services api client (AddVeracityServices(ConfigurationManagerHelper.GetValueOnKey("myApiV3Url")))
-2. include the proxies, optional (.AddVeracityApiProxies(ConfigurationManagerHelper.GetValueOnKey("myApiV3Url"), CookieAuthenticationDefaults.AuthenticationScheme))
-
-##### Use the api client in your controllers
-
-The method *AddVeracityServices* includes the Services api client components in the IoC container, and can be used as constructor parameters
-
-
-```CS
-[Authorize]
-public class IndexModel : PageModel
-{
-    private readonly IApiClient _apiClient;
-
-    public IndexModel(IApiClient apiClient)
-    {
-        _apiClient = apiClient;
-    }
-	public async Task OnGet()
-    {
-        var userProfile = await _apiClient.My.Info();
-        ViewData.Add("userProfile",userProfile);
-    }
-}
-```
-
-Including the proxies (*AddVeracityApiProxies*) allows you to access the api like this:
-https://localhost:44303/my/profile
-
-Response:
-```JSON
-{
-   "profilePageUrl":"https://localhost:52400/EditProfile",
-   "messagesUrl":"/my/messages",
-   "identity":"/my/profile",
-   "servicesUrl":"/my/services?page=0&pageSize=10",
-   "companiesUrl":"/my/companies",
-   "name":"DisplayName",
-   "email":"my@email.com",
-   "id":"c683d4fb-f12c-21d2-2161-3122352324333",
-   "company":{
-      "identity":"/directory/companies/1334-12",
-      "name":"MyCompany",
-      "id":"1334-12",
-      "description":null
-   },
-   "#companies":1,
-   "verifiedEmail":true,
-   "language":null,
-   "firstName":"FirstName",
-   "lastName":"LastName"
-}
-```
-
-#### asp.net
-
-For asp.net applications we have also tried to make the differences as little as possible from the first example
-
-```NUGET
-PM> Install-Package Veracity.Common.OAuth.AspNet
-PM> Install-Package Veracity.Services.Api
-```
-
-global.asax.cs
-
-```CS
-public class WebApiApplication : System.Web.HttpApplication
-{
-    protected void Application_Start()
-    {
-        ConfigurationManagerHelper.SetManager(new ConfigManager());
-        this.AddDependencyInjection<AppServiceConfig>();//Uses Microsoft.Extensions.DependencyInjection as the IoC container and configures the veracity sdk bindings
-        AreaRegistration.RegisterAllAreas();
-        GlobalConfiguration.Configure(WebApiConfig.Register);
-        FilterConfig.RegisterGlobalFilters(GlobalFilters.Filters);
-        RouteConfig.RegisterRoutes(RouteTable.Routes);
-        BundleConfig.RegisterBundles(BundleTable.Bundles);
-        //ClientFactory.RegisterTokenProvider(new TokenProvider());
-
-    }
-}
-
-public class AppServiceConfig : ServicesConfig //notice the base class here is different, this includes all the needed components for the Veracity Services api client
-{
-    public override bool IncludeProxies => true;
-
-    protected override IServiceCollection Configure(IServiceCollection services)
-    {
-        //Configure your own services here
-        return base.Configure(services);
-    }
-}
-
-```
-Add Owin and owin startup.cs 
-
-
-Add cache constructor function
-```CS
-private static DistributedTokenCache CacheFactoryFunc()
-        {
-            return new DistributedTokenCache(HttpContext.Current.User as ClaimsPrincipal, DistributedCache, null, null);
-        }
-
-        private static MemoryDistributedCache DistributedCache { get; } =
-            new MemoryDistributedCache(
-                new OptionsWrapper<MemoryDistributedCacheOptions>(new MemoryDistributedCacheOptions()));
-```
-You can inject a dataprotector into DistributedTokenCache as the last parameter, see aspnetcore for details
-
-Add the configuration code
-```CS
-public void Configuration(IAppBuilder app)
-{
-	//Get secrets from Azure Key Vault using managed service identity (MSI)
-    var azureServiceTokenProvider = new AzureServiceTokenProvider();
-    var keyVaultClient = new KeyVaultClient(async (authority, resource, scope) =>
-        await azureServiceTokenProvider.GetAccessTokenAsync(resource));
-    var secret = keyVaultClient.GetSecretAsync("https://veracitydevdaydemo.vault.azure.net/",
-        "Veracity1--ClientSecret").Result;
-    var subscriptionKey = keyVaultClient
-        .GetSecretAsync("https://veracitydevdaydemo.vault.azure.net/", "Veracity--SubscriptionKey").Result;
-	//Add cookie authentication
-    app.UseCookieAuthentication(new CookieAuthenticationOptions { CookieName = "a.c" }); //set auth cookie
-    app.SetDefaultSignInAsAuthenticationType(CookieAuthenticationDefaults.AuthenticationType); //set default auth type 
-    //configure veracity auth
-    app.UseVeracityAuthentication(new TokenProviderConfiguration
-    {
-        ClientSecret = secret.Value,
-        SubscriptionKey = subscriptionKey.Value
-    }) //Add Azure Ad B2C authentication 
-        .UseTokenCache(CacheFactoryFunc); //add access token cache 
-}
-```
-
-Configuration
-
-```XML
-<appSettings>
-    <add key="webpages:Version" value="3.0.0.0" />
-    <add key="webpages:Enabled" value="false" />
-    <add key="ClientValidationEnabled" value="true" />
-    <add key="UnobtrusiveJavaScriptEnabled" value="true" />
-    <add key="apiGW:clientId" value="yourAppId" />
-    <add key="apiGW:policy" value="B2C_1A_SignInWithADFSIdp" />
-    <add key="apiGW:scope" value="	https://dnvglb2cprod.onmicrosoft.com/83054ebf-1d7b-43f5-82ad-b2bde84d7b75/user_impersonation" />
-    <add key="apiGW:redirectUrl" value="yourAppUrl" />
-    <add key="apiGW:idp" value="a68572e3-63ce-4bc1-acdc-b64943502e9d" />
-    <add key="myApiV3Url" value="https://api.veracity.com/Veracity/Services/V3" />
-    <add key="apiGW:clientSecret" value="yourSecret" />
-    <add key ="subscriptionKey" value="yourSubscriptionKey"/>
-  </appSettings>
-```
-
-To use the api client from your controllers simply add it as a constructor parameter 
-
-```CS
-public class HomeController : Controller
-{
-    private readonly IApiClient _veracityClient;
-
-    public HomeController(IApiClient veracityClient)
-    {
-        _veracityClient = veracityClient;
-    }
-
-    public async Task<ActionResult> Index()
-    {
-        var user = new UserInfo();
-        ViewBag.Title = "Home Page";
-        if (Request.IsAuthenticated)
-        {
-            ViewBag.Email = (User.Identity as ClaimsIdentity)?.Claims
-                .FirstOrDefault(c => c.Type == ClaimTypes.Upn)?.Value;
-            user = await _veracityClient.My.Info();
-        }
-        return View(user);
-    }
-
-    public void Login(string redirectUrl)
-    {
-        if (!Request.IsAuthenticated)
-        {
-            HttpContext.GetOwinContext().Authentication.Challenge();
-            return;
-        }
-        if (redirectUrl.IsNullOrWhiteSpace()) redirectUrl = "/";
-
-        Response.Redirect(redirectUrl);
-    }
-
-
-    public void Logout(string redirectUrl)
-    {
-        Response.Logout(redirectUrl);
-    }
-}
-```
-
-
-
-## Veracity.Services.Api
-
-See [https://developer.veracity.com/doc/service-api](https://developer.veracity.com/doc/service-api) for full documentation
-
-### Purpose
-
-> provide a unified and simple api for interacting with Veracity Services. The services are all RESTfull with JSON as the default data format.
-
-### Vocabulary
-
-With the Veracity Services api V3 we are trying to make a unified and consistent vocabulary for interacting with Veracity. At the heart of the API lies a set of view-points that represents the data seen from an 
-actors point of view. 
-
-The api follows a normal usage of http verbs and nouns in the URI's. With the exception of some RPC type actions that uses '()' at the end of the action. example:
-GET /my/policy/validate()
-
-Collection responses will return a list of simplified representations with the url to the complete representation of that item. Example:
-
-```JSON
-[
-   {
-    "identity": "/directory/companies/1314941d-e574-46d3-9089-ef7639428d69",
-    "name": "Veracity Ltd",
-    "id": "1314941d-e574-46d3-9089-ef7639428d69"
-  },
-  {
-    "identity": "/directory/companies/407e9e2d-307f-43d8-909b-23fd005d50ed",
-    "name": "Article 8 Demo Company",
-    "id": "407e9e2d-307f-43d8-909b-23fd005d50ed"
-  }
-]
-```
-
-#### View points
-
-##### My
-This view-point represents the loged in user. 
-
-> Note that you are required to validate that the user has accepted terms of use for the platform and your servcie (if applicable) each time a user accesses your service.
-In order to do this, after receiving the authorization code using OIDC, you call the ValidatePolicy endpoint and redirect to the provided url if needed. (see the hello world for details)
-
-##### This
-the "This" view-point is the service/application's point ov view. The application has users (persons and or organizations), a set of capabillities and are able to send notifications etc.
-
-##### Directory (formerly Discover)
-This is a common viewpoint allowing your app to look up different masterdata and resources with in Veracity. The main categories are: Services, Users and companies.
-
-##### Options
-
-To find the CORS requirements and viewpoint rights requirements use the options verb for the different viewpoints
-
-### Security
-
-This api supports A OAuth2 bearer tokens. With *User* we understand authorization flows that involve a user. In most cases this will be Authorization Code flow. 
-
-
-|View-point |Authorization type required|Comments                                   |Authorization rule                     |
-|-----------|---------------------------|-------------------------------------------|---------------------------------------|
-|My         |User                       |Only accessable when action on behalf of a user|User must exist in Veracity|
-|Our        |User                       |Only accessable when action on behalf of a user|User must exist in Veracity|
-|This       |User or ClientCredetial    |The client id must have basic access rights when used with a principal. Or 'deamon' rights and access to the feature for the service|User + clientId.read or clientId+clientId.read|
-|Directory  |User or ClientCredetial    |The client id must have basic access rights when used with a principal. Or 'deamon' rights and access to the feature for the service|User + clientId.read or clientId+clientId.read|
-
-
-### Common HTTP headers
-
-|Header name|Description|
-|:----------------------|:--------------------------------------------------------------------------------------------------|
-|x-supportCode          |provides a unified way of correlating log entries accross all system components                    |
-|x-serviceversion       |the api build number                                                                               |
-|x-timer                |The time spent on the server producing the response                                                |
-|x-region               |the azure region serving the request                                                               |
-|x-principal            |the user the request was executen on behalf of                                                     |
-|x-view-point           |the current view point                                                                             |
-|x-actor                |the user id of the actor/service account                                                           |
-
-### Error responses
-
-
-|Http status|Status Name            |Description                                                                   |
-|-----------|-----------------------|------------------------------------------------------------------------------|
-|500        |Internal Server Error  |Something went wrong while processing the request.                            |
-|404        |Not Found              |The requested resource was not found.                                         |
-|400        |Bad Request            |Something was wrong with the request or the request parameters                |
-|300        |Ambiguous              |More than one resource was found, use a more spesific version of the request. |
-|403        |Forbidden              |Not sufficient rights or authorization is missing from request                |
-|401        |Unauthorized           |Request is not authorized										               |
-|501        |Not Implemented        |The action is not currently implemented, will be supported in future releases |
-
-
-#### Response body
-
-The error response may have one of the two formats
-```JSON
-{
-  "message": "Error message",
-  "information": "additional info",
-  "subCode": 9 //error code
-}
-```
-```JSON
-{
-  "Message": "Error message"
-}
-```
+		.SetCompatibilityVersion(CompatibilityVersion Version_2_2);
