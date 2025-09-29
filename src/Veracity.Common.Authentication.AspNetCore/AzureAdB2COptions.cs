@@ -24,6 +24,6 @@ namespace Veracity.Common.Authentication
 
         public static bool TerminateOnPolicyException { get; set; }
 
-        public OpenIdConnectEvents OpenIdConnectEvents { get; set; }
+        public OpenIdConnectEvents OpenIdConnectEvents { get; set; } = new();
     }
 }
